@@ -54,12 +54,12 @@ def send_payout(phone, network, amount, reference_id, currency="USDC"):
     }
     for attempt in range(4):
         try:
+            # Re-posting the same reference_id returns the existing withdrawal,
+            # so retrying after a timeout can never create a second payout.
             return call("POST", "/withdrawals", json=payload)["data"]
         except requests.Timeout:
-            # Did the first attempt land? Look before re-posting.
-            found = call("GET", "/transactions", params={"reference_id": reference_id})["data"]
-            if found:
-                return found[0]
+            if attempt == 3:
+                raise
         except FiatsendError as e:
             if e.code not in RETRYABLE or attempt == 3:
                 raise

@@ -93,7 +93,7 @@ server.registerTool("fiatsend_list_networks", {
 
 server.registerTool("fiatsend_get_limits", {
   title: "Get KYC tier limits",
-  description: "Daily, monthly and per-transaction limits for each KYC tier (basic, verified, enterprise).",
+  description: "Daily, monthly and per-transaction limits for each KYC tier (basic, standard, enterprise).",
   inputSchema: {},
   annotations: { readOnlyHint: true, openWorldHint: true },
 }, () => run(() => api().client.request("GET", "/limits")));
@@ -156,7 +156,7 @@ server.registerTool("fiatsend_get_withdrawal", {
 
 server.registerTool("fiatsend_list_transactions", {
   title: "List transactions",
-  description: "List withdrawals with optional filters. Use reference_id to find a payout after a timeout before retrying.",
+  description: "List withdrawals with optional filters. reference_id is applied by this server because the API currently ignores it. To recover from a timeout, re-send fiatsend_create_withdrawal with the same reference_id instead: it returns the existing payout.",
   inputSchema: {
     status: z.enum(["pending", "processing", "completed", "failed"]).optional(),
     reference_id: z.string().optional(),
@@ -166,7 +166,15 @@ server.registerTool("fiatsend_list_transactions", {
     per_page: z.number().int().min(1).max(100).optional(),
   },
   annotations: { readOnlyHint: true, openWorldHint: true },
-}, (q) => run(() => api().client.request("GET", "/transactions", { query: q })));
+}, (q) => run(async () => {
+  const res = await api().client.request("GET", "/transactions", { query: q });
+  // The API currently ignores reference_id; filter here so callers get only matching payouts.
+  if (q.reference_id && Array.isArray(res?.data)) {
+    const data = res.data.filter((w: any) => w.reference_id === q.reference_id);
+    return { ...res, data, note: "Filtered by reference_id on the client (the API returned unfiltered results)." };
+  }
+  return res;
+})));
 
 server.registerTool("fiatsend_get_checkout_session", {
   title: "Get checkout session",
@@ -209,7 +217,7 @@ server.registerTool("fiatsend_create_withdrawal", {
   title: "Send a payout (moves money)",
   description:
     "Send USDC/USDT to a Ghana mobile money wallet. MOVES MONEY. Only call after fiatsend_quote_payout and after the user has explicitly confirmed the amount, phone and network. " +
-    "reference_id is the idempotency key: reuse the same value on retry. Blocked for live keys unless FIATSEND_ALLOW_LIVE_PAYOUTS=true.",
+    "reference_id is the idempotency key: re-sending the same value returns the existing payout, so retry with it after a timeout. Blocked for live keys unless FIATSEND_ALLOW_LIVE_PAYOUTS=true.",
   inputSchema: {
     amount: Amount,
     currency: Stablecoin,

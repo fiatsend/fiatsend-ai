@@ -37,6 +37,8 @@ Locks the FX rate, converts stablecoin → GHS, sends to the mobile wallet.
 ```
 Errors: 400 `INVALID_PHONE`/`INVALID_NETWORK`, 401, 422 `BELOW_MINIMUM`/`ABOVE_MAXIMUM`/`RATE_EXPIRED`, 429, 503.
 
+Duplicate `reference_id`: returns success with the **existing** withdrawal (same `withdrawal_id`, current status) — no second payout. Verified against the sandbox on 2026-10-09. Safe to retry after a timeout.
+
 Status lifecycle: `pending` → `processing` → `completed` | `failed` (funds returned to source).
 
 ### GET /withdrawals/{withdrawal_id}
@@ -44,6 +46,8 @@ Status lifecycle: `pending` → `processing` → `completed` | `failed` (funds r
 
 ### GET /transactions
 Query: `status`, `from_date`, `to_date` (ISO 8601), `reference_id`, `page` (1), `per_page` (25, max 100).
+
+> **Known issue (sandbox, 2026-10-09):** `reference_id` is ignored — the response includes withdrawals with other references. Filter `data` by `reference_id` in your own code.
 Response: `{ status, data: [WithdrawalDetail], pagination: { page, per_page, total, total_pages } }`.
 
 ---
@@ -57,14 +61,14 @@ Query (all required): `from_currency` (`USDC`|`USDT`), `to_currency` (`GHS`), `a
   "amount": "100.00", "rate": "15.02", "fee": "1.00", "total_ghs": "1501.00",
   "valid_until": "2026-03-21T07:05:00Z" } }
 ```
-Rate is guaranteed until `valid_until`. Example values are illustrative — always use the live response.
+Rate is guaranteed until `valid_until`. `fee` is in the source stablecoin: `total_ghs = (amount − fee) × rate`, rounded to 2 places (sandbox: 10.00 USDC, fee 0.10, rate 11.65 → 115.34). Example values are illustrative — always use the live response.
 
 ### GET /supported-networks
 Each item: `network_id`, `name`, `country` (`GH`), `currency` (`GHS`), `status` (`operational`|`degraded`|`down`), `min_amount`, `max_amount`.
 Documented examples: MTN 5–10,000; TELECEL 5–5,000; AIRTELTIGO 5–5,000. Read live values; don't hard-code.
 
 ### GET /limits
-Per KYC tier: `tier`, `daily_limit`, `monthly_limit`, `per_transaction_max`. Tiers: `basic`, `verified`, `enterprise`.
+Per KYC tier: `tier`, `daily_limit`, `monthly_limit`, `per_transaction_max`. Tiers returned by the API: `basic`, `standard`, `enterprise` (the docs call the middle tier `verified`).
 
 ---
 

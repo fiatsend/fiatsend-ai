@@ -20,7 +20,7 @@ Canonical sources (check these when in doubt — they win over this file):
 2. **Sandbox first.** Default to `https://sandbox.fiatsend.com/v1` with an `fs_test_` key. Only use `https://api.fiatsend.com/v1` with an `fs_live_` key when the user explicitly says production.
    - Exception: **checkout sessions** use `https://api.fiatsend.com/v1` for both modes; the key prefix decides test vs live.
 3. **Money is a string.** Withdrawal and rate amounts are decimal strings (`"50.00"`). Never use floats for arithmetic — use integer minor units or a decimal library. (Checkout `amount` is a JSON number in major units.)
-4. **Idempotency = `reference_id`.** Every withdrawal needs a unique, stable `reference_id` derived from your own record (e.g. `payout_<db id>`). Generate it once, persist it, and reuse it on retry. Never generate a fresh random ID inside a retry loop.
+4. **Idempotency = `reference_id`.** Every withdrawal needs a unique, stable `reference_id` derived from your own record (e.g. `payout_<db id>`). Generate it once, persist it, and reuse it on retry. Re-posting the same `reference_id` returns the existing withdrawal instead of creating a second one (confirmed in sandbox, 2026-10-09). Never generate a fresh random ID inside a retry loop.
 5. **Phones are E.164 Ghana numbers**: `+233` followed by 9 digits (e.g. `+233241234567`). Normalise `0241234567` → `+233241234567` before sending.
 6. **Confirm payment on the server.** Fulfil orders only after the `checkout.session.completed` webhook or a server-side `GET` shows `status: "complete"` — never on a browser redirect or JS event.
 7. **Verify every webhook** with HMAC-SHA256 over the **raw** body before parsing (see `references/webhooks.md`).
@@ -41,11 +41,11 @@ Content-Type: application/json
 |---|---|---|
 | Health check | `GET /health` | No auth |
 | Networks + min/max | `GET /supported-networks` | `status`: operational / degraded / down |
-| KYC tier limits | `GET /limits` | basic / verified / enterprise |
-| FX quote | `GET /rates?from_currency=USDC&to_currency=GHS&amount=100.00` | Guaranteed until `valid_until` |
+| KYC tier limits | `GET /limits` | basic / standard / enterprise (docs say "verified"; the API returns `standard`) |
+| FX quote | `GET /rates?from_currency=USDC&to_currency=GHS&amount=100.00` | Guaranteed until `valid_until`. `fee` is in the stablecoin: `total_ghs = (amount − fee) × rate` |
 | Send payout | `POST /withdrawals` | Returns 201, `status: pending` |
 | Payout status | `GET /withdrawals/{withdrawal_id}` | Prefer webhooks over polling |
-| List payouts | `GET /transactions` | Filters: status, from_date, to_date, reference_id, page, per_page≤100 |
+| List payouts | `GET /transactions` | Filters: status, from_date, to_date, page, per_page≤100. `reference_id` filter is currently ignored — filter results yourself |
 | Create checkout | `POST /checkout/sessions` | Redirect customer to `url` |
 | Get checkout | `GET /checkout/sessions/{id}` | `status`: open / complete / cancelled |
 | List checkouts | `GET /checkout/sessions?limit=25` | 1–100 |
@@ -119,7 +119,7 @@ Two error shapes exist — handle both:
 | Re-quote, then retry | `RATE_EXPIRED` 422 |
 | Retry with backoff, **same reference_id** | `RATE_LIMITED` / `rate_limited` 429, `NETWORK_DOWN` 503, `INSUFFICIENT_LIQUIDITY` 503, `INTERNAL_ERROR` 500, `upstream_unavailable` 502, timeouts |
 
-On a timeout after `POST /withdrawals`, do **not** blindly re-post a new payout: look it up with `GET /transactions?reference_id=...` first.
+On a timeout after `POST /withdrawals`, retry the **same request with the same `reference_id`**: the API returns the existing withdrawal rather than creating a new one. Don't use `GET /transactions?reference_id=` to check — that filter is currently ignored and returns other payouts.
 
 Rate limits: sandbox 60/min · 10k/day; production 300/min · 100k/day; checkout 120/min per business.
 

@@ -55,7 +55,8 @@ log(`info duplicate reference_id → ${dup.isError ? "error" : "success"}: ${dup
 
 const id = created?.data?.withdrawal_id;
 if (id) await step("fiatsend_get_withdrawal", { withdrawal_id: id }, (d) => d.data?.withdrawal_id !== id && "id mismatch");
-await step("fiatsend_list_transactions", { reference_id: ref });
+await step("fiatsend_list_transactions", { reference_id: ref },
+  (d) => (!d.data?.length || d.data.some((w) => w.reference_id !== ref)) && "results not filtered to this reference_id");
 await step("fiatsend_list_webhooks", {});
 
 await client.close();

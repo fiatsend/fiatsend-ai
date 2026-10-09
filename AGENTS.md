@@ -11,13 +11,13 @@ Docs: https://developer.fiatsend.com · OpenAPI: https://developer.fiatsend.com/
 
 ## Must do
 - Withdrawal `amount` is a decimal **string** (`"50.00"`); checkout `amount` is a number. No float math on money.
-- `reference_id` is the idempotency key: derive it from a stored DB record, reuse on retry, never regenerate.
+- `reference_id` is the idempotency key: derive it from a stored DB record, reuse on retry, never regenerate. Re-posting it returns the existing withdrawal.
 - `recipient_phone` E.164 Ghana: `+233` + 9 digits. `mobile_network`: `MTN` | `TELECEL` | `AIRTELTIGO`. `currency`: `USDC` | `USDT`.
 - Before paying out: check `GET /supported-networks` (status + min/max) and `GET /rates` (`valid_until`).
 - Webhooks: verify `X-Fiatsend-Signature` (hex HMAC-SHA256 of the RAW body, constant-time compare, length-check first) before parsing. Event name is `payload.type` (withdrawals) or `payload.event` (checkout). Dedupe, respond 2xx fast.
 - Fulfil checkout orders only on `checkout.session.completed` or a server GET showing `status: "complete"`.
 - Handle both error shapes: `{status:"error",code,message}` and `{error:{code,message}}`.
-- Retry with backoff only on 429/500/502/503; on `RATE_EXPIRED` re-quote; on timeout, `GET /transactions?reference_id=` before re-posting.
+- Retry with backoff only on 429/500/502/503; on `RATE_EXPIRED` re-quote; on timeout, re-post with the SAME `reference_id`. Don't rely on `GET /transactions?reference_id=` (filter currently ignored) — filter results client-side.
 
 ## Endpoints
 GET /health (no auth) · GET /supported-networks · GET /limits · GET /rates?from_currency&to_currency=GHS&amount ·
