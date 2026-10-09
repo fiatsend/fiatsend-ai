@@ -19,14 +19,16 @@ await client.connect(new StdioClientTransport({
 }));
 
 let failures = 0;
+const lines = [];
+const log = (l) => { console.log(l); lines.push(l); };
 async function step(name, args, check) {
   const res = await client.callTool({ name, arguments: args });
   const text = res.content?.[0]?.text ?? "";
   let data; try { data = JSON.parse(text); } catch { data = text; }
   let problem = res.isError ? "tool returned an error" : null;
   if (!problem && check) { try { problem = check(data) || null; } catch (e) { problem = e.message; } }
-  console.log(`${problem ? "FAIL" : "ok  "} ${name}${problem ? ` — ${problem}` : ""}`);
-  console.log("     " + text.replace(/\n\s*/g, " ").slice(0, 400));
+  log(`${problem ? "FAIL" : "ok  "} ${name}${problem ? ` — ${problem}` : ""}`);
+  log("     " + text.replace(/\n\s*/g, " ").slice(0, 400));
   if (problem) failures++;
   return data;
 }
@@ -49,7 +51,7 @@ const dup = await client.callTool({ name: "fiatsend_create_withdrawal", argument
   amount: "10.00", currency: "USDC", recipient_phone: "+233241234567", mobile_network: "MTN",
   reference_id: ref, user_confirmed: true,
 } });
-console.log(`info duplicate reference_id → ${dup.isError ? "error" : "success"}: ${dup.content?.[0]?.text.replace(/\n\s*/g, " ").slice(0, 300)}`);
+log(`info duplicate reference_id → ${dup.isError ? "error" : "success"}: ${dup.content?.[0]?.text.replace(/\n\s*/g, " ").slice(0, 300)}`);
 
 const id = created?.data?.withdrawal_id;
 if (id) await step("fiatsend_get_withdrawal", { withdrawal_id: id }, (d) => d.data?.withdrawal_id !== id && "id mismatch");
@@ -57,5 +59,10 @@ await step("fiatsend_list_transactions", { reference_id: ref });
 await step("fiatsend_list_webhooks", {});
 
 await client.close();
-console.log(failures ? `\n${failures} step(s) failed` : "\nAll sandbox steps passed");
+log(failures ? `${failures} step(s) failed` : "All sandbox steps passed");
+// On GitHub Actions, also attach the results to the run as an annotation (readable via the API).
+if (process.env.GITHUB_ACTIONS) {
+  const esc = (t) => t.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  console.log(`::notice title=Sandbox smoke results::${esc(lines.join("\n"))}`);
+}
 process.exit(failures ? 1 : 0);
