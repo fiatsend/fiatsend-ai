@@ -174,7 +174,7 @@ server.registerTool("fiatsend_list_transactions", {
     return { ...res, data, note: "Filtered by reference_id on the client (the API returned unfiltered results)." };
   }
   return res;
-})));
+}));
 
 server.registerTool("fiatsend_get_checkout_session", {
   title: "Get checkout session",
