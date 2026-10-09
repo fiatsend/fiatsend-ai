@@ -3,6 +3,11 @@ name: Sandbox smoke test
 # Start it from the Actions tab → "Sandbox smoke test" → Run workflow.
 on:
   workflow_dispatch:
+    inputs:
+      full:
+        description: Show full API responses
+        type: boolean
+        default: false
   schedule:
     - cron: "17 6 * * 1"   # every Monday, catches API changes
 jobs:
@@ -21,4 +26,5 @@ jobs:
       - run: node test/sandbox.smoke.mjs
         env:
           # Your own sandbox key if you add one as a secret; otherwise the public demo key from developer.fiatsend.com
+          SMOKE_FULL: ${{ inputs.full && '1' || '' }}
           FIATSEND_API_KEY: ${{ secrets.FIATSEND_SANDBOX_KEY || 'fs_test_demo_key_2026' }}

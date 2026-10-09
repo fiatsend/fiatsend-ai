@@ -28,7 +28,7 @@ async function step(name, args, check) {
   let problem = res.isError ? "tool returned an error" : null;
   if (!problem && check) { try { problem = check(data) || null; } catch (e) { problem = e.message; } }
   log(`${problem ? "FAIL" : "ok  "} ${name}${problem ? ` — ${problem}` : ""}`);
-  log("     " + text.replace(/\n\s*/g, " ").slice(0, 400));
+  log("     " + text.replace(/\n\s*/g, " ").slice(0, process.env.SMOKE_FULL ? 4000 : 400));
   if (problem) failures++;
   return data;
 }
