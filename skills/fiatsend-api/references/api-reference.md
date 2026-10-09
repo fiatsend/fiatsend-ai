@@ -32,7 +32,7 @@ Locks the FX rate, converts stablecoin → GHS, sends to the mobile wallet.
   "amount": "50.00", "currency": "USDC", "ghs_amount": "750.00",
   "fx_rate": "15.00", "fee": "0.50",
   "recipient_phone": "+233241234567", "mobile_network": "MTN",
-  "reference_id": "deel-txn-abc123",
+  "reference_id": "acme-txn-abc123",
   "estimated_completion": "2026-03-21T07:00:00Z", "created_at": "2026-03-21T06:59:30Z" } }
 ```
 Errors: 400 `INVALID_PHONE`/`INVALID_NETWORK`, 401, 422 `BELOW_MINIMUM`/`ABOVE_MAXIMUM`/`RATE_EXPIRED`, 429, 503.
@@ -47,7 +47,6 @@ Status lifecycle: `pending` → `processing` → `completed` | `failed` (funds r
 ### GET /transactions
 Query: `status`, `from_date`, `to_date` (ISO 8601), `reference_id`, `page` (1), `per_page` (25, max 100).
 
-> **Known issue (sandbox, 2026-10-09):** `reference_id` is ignored — the response includes withdrawals with other references. Filter `data` by `reference_id` in your own code.
 Response: `{ status, data: [WithdrawalDetail], pagination: { page, per_page, total, total_pages } }`.
 
 ---
@@ -64,7 +63,7 @@ Query (all required): `from_currency` (`USDC`|`USDT`), `to_currency` (`GHS`), `a
 Rate is guaranteed until `valid_until`. `fee` is in the source stablecoin: `total_ghs = (amount − fee) × rate`, rounded to 2 places (sandbox: 10.00 USDC, fee 0.10, rate 11.65 → 115.34). Example values are illustrative — always use the live response.
 
 ### GET /supported-networks
-Each item: `network_id`, `name`, `country` (`GH`), `currency` (`GHS`), `status` (`operational`|`degraded`|`down`), `min_amount`, `max_amount`.
+Each item: `network_id`, `name`, `country` (`GH`), `currency` (`GHS`), `status` (`operational`|`degraded`|`down`), `min_amount`, `max_amount`. `min_amount`/`max_amount` are in GHS (the network `currency`), not the stablecoin: every payout must deliver GHS 50.00 to 15,000.00 (`ghs_amount`), otherwise `BELOW_MINIMUM` / `ABOVE_MAXIMUM`.
 Documented examples: MTN 5–10,000; TELECEL 5–5,000; AIRTELTIGO 5–5,000. Read live values; don't hard-code.
 
 ### GET /limits
@@ -110,11 +109,11 @@ No-code buttons: https://docs.fiatsend.com/docs/payments/website-checkout
 
 ---
 
-## Payment intents (consumer approves in Fiatsend app)
+## Payment intents (beta)
 
-Documented on the portal; not in the OpenAPI file yet — confirm with partners@fiatsend.com before relying on it.
+Beta: works in sandbox and production, but fields and events may still change. The customer approves in the Fiatsend app or pays the USDC link with a Stellar wallet (USDC intents pay straight to the business's bound Stellar wallet). Webhook events: `payment_intent.pending_approval`, `.approved`, `.completed`, `.rejected`, `.cancelled`, `.expired`, `.failed`. Each business only sees its own intents.
 
-- `POST /payment-intents` — `amount` (string), `currency` (usually `GHS`), `consumer_phone` (E.164), `merchant_reference` (idempotency), optional `terminal_id`, `description`. 201 → `payment_intent_id`, `status: "pending_approval"`, `expires_at` (≈90 s after creation in the example).
+- `POST /payment-intents` — `amount` (string), `currency` (usually `GHS`), `consumer_phone` (E.164), `merchant_reference` (idempotency), optional `terminal_id`, `description`. 201 → `payment_intent_id`, `status: "pending_approval"`, `expires_at` (1 hour after creation by default).
 - `GET /payment-intents/{id}`
 - `POST /payment-intents/{id}/cancel`
 - `/internal/payment-intents/*` routes use `X-Internal-Token` and are for Fiatsend's own services — partners should not call them.
@@ -140,8 +139,11 @@ Checkout webhooks are configured in Console, not here.
 | UNAUTHORIZED | 401 | Invalid or missing API key |
 | INVALID_PHONE | 400 | Bad phone format |
 | INVALID_NETWORK | 400 | Unsupported network |
-| BELOW_MINIMUM | 422 | Amount below network minimum |
-| ABOVE_MAXIMUM | 422 | Amount above network maximum |
+| BELOW_MINIMUM | 422 | Payout below GHS 50 (the cedis delivered) |
+| ABOVE_MAXIMUM | 422 | Payout above GHS 15,000 (the cedis delivered) |
+| REFERENCE_IN_USE | 409 | `reference_id` already used by another account; use a unique one per payout |
+| INSUFFICIENT_BALANCE | 422 | Business balance doesn't cover the withdrawal; fund it in the console |
+| PAYOUTS_UNAVAILABLE | 503 | Payouts temporarily unavailable; nothing was charged, retry later |
 | RATE_EXPIRED | 422 | Quote expired |
 | NETWORK_DOWN | 503 | Mobile money network unavailable |
 | INSUFFICIENT_LIQUIDITY | 503 | Not enough liquidity |

@@ -18,7 +18,8 @@ Lets Claude, Cursor, VS Code, Windsurf and any other MCP client talk to the Fiat
 | `fiatsend_list_transactions` | Search payouts (e.g. by `reference_id`) | No |
 | `fiatsend_create_checkout_session` | Create a payment link | No (collects) |
 | `fiatsend_get_checkout_session` / `fiatsend_list_checkout_sessions` | Check payments | No |
-| `fiatsend_register_webhook` / `fiatsend_list_webhooks` / `fiatsend_delete_webhook` | Manage withdrawal webhooks | No |
+| `fiatsend_create_payment_intent` / `fiatsend_get_payment_intent` / `fiatsend_cancel_payment_intent` | Payment intents (beta): request, check or cancel a customer payment | No (collects); cancel asks first |
+| `fiatsend_register_webhook` / `fiatsend_list_webhooks` / `fiatsend_delete_webhook` | Manage withdrawal and payment-intent webhooks | No |
 | `fiatsend_verify_webhook_signature` | Local signature debugger | No |
 
 Resource: `fiatsend://docs/llms-full` — the full API reference, so the AI can write integration code accurately.

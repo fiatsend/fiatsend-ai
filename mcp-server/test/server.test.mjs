@@ -20,11 +20,15 @@ test("lists every tool with annotations and the docs resource", async () => {
   const { tools } = await c.listTools();
   const names = tools.map((t) => t.name).sort();
   assert.deepEqual(names, [
-    "fiatsend_create_checkout_session", "fiatsend_create_withdrawal", "fiatsend_delete_webhook",
-    "fiatsend_get_checkout_session", "fiatsend_get_limits", "fiatsend_get_rate", "fiatsend_get_withdrawal",
-    "fiatsend_health", "fiatsend_list_checkout_sessions", "fiatsend_list_networks", "fiatsend_list_transactions",
+    "fiatsend_cancel_payment_intent", "fiatsend_create_checkout_session", "fiatsend_create_payment_intent",
+    "fiatsend_create_withdrawal", "fiatsend_delete_webhook", "fiatsend_get_checkout_session", "fiatsend_get_limits",
+    "fiatsend_get_payment_intent", "fiatsend_get_rate", "fiatsend_get_withdrawal", "fiatsend_health",
+    "fiatsend_list_checkout_sessions", "fiatsend_list_networks", "fiatsend_list_transactions",
     "fiatsend_list_webhooks", "fiatsend_quote_payout", "fiatsend_register_webhook", "fiatsend_verify_webhook_signature",
   ]);
+  const cancel = tools.find((t) => t.name === "fiatsend_cancel_payment_intent");
+  assert.equal(cancel.annotations.destructiveHint, true);
+  assert.equal(tools.find((t) => t.name === "fiatsend_get_payment_intent").annotations.readOnlyHint, true);
   const payout = tools.find((t) => t.name === "fiatsend_create_withdrawal");
   assert.equal(payout.annotations.destructiveHint, true);
   assert.ok(payout.inputSchema.required.includes("user_confirmed"));

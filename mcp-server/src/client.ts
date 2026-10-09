@@ -89,10 +89,15 @@ export function normaliseGhanaPhone(input: string): string {
   return `+233${d}`;
 }
 
-/** Verify X-Fiatsend-Signature: hex HMAC-SHA256 of the raw body. */
+/**
+ * Verify X-Fiatsend-Signature: HMAC-SHA256 of the raw body. Withdrawal and payment-intent events send
+ * "sha256=<hex>"; checkout events send bare hex. Both forms are accepted.
+ */
 export function verifySignature(rawBody: string, signature: string, secret: string): boolean {
   const expected = crypto.createHmac("sha256", secret).update(rawBody, "utf8").digest("hex");
-  const a = Buffer.from(signature.trim().toLowerCase(), "utf8");
+  const trimmed = signature.trim().toLowerCase();
+  const received = trimmed.startsWith("sha256=") ? trimmed.slice(7) : trimmed;
+  const a = Buffer.from(received, "utf8");
   const b = Buffer.from(expected, "utf8");
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }

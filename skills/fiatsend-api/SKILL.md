@@ -41,17 +41,17 @@ Content-Type: application/json
 |---|---|---|
 | Health check | `GET /health` | No auth |
 | Networks + min/max | `GET /supported-networks` | `status`: operational / degraded / down |
-| KYC tier limits | `GET /limits` | basic / standard / enterprise (docs say "verified"; the API returns `standard`) |
+| KYC tier limits | `GET /limits` | basic / standard / enterprise |
 | FX quote | `GET /rates?from_currency=USDC&to_currency=GHS&amount=100.00` | Guaranteed until `valid_until`. `fee` is in the stablecoin: `total_ghs = (amount − fee) × rate` |
 | Send payout | `POST /withdrawals` | Returns 201, `status: pending` |
 | Payout status | `GET /withdrawals/{withdrawal_id}` | Prefer webhooks over polling |
-| List payouts | `GET /transactions` | Filters: status, from_date, to_date, page, per_page≤100. `reference_id` filter is currently ignored — filter results yourself |
+| List payouts | `GET /transactions` | Filters: status, reference_id, page, per_page≤100 |
 | Create checkout | `POST /checkout/sessions` | Redirect customer to `url` |
 | Get checkout | `GET /checkout/sessions/{id}` | `status`: open / complete / cancelled |
 | List checkouts | `GET /checkout/sessions?limit=25` | 1–100 |
 | Register webhook | `POST /webhooks` | Withdrawal events only |
 | List / delete webhooks | `GET /webhooks`, `DELETE /webhooks/{id}` | Delete returns 204 |
-| Payment intents | `POST /payment-intents`, `GET /payment-intents/{id}`, `POST /payment-intents/{id}/cancel` | Consumer approves in the Fiatsend app; not in the OpenAPI file yet |
+| Payment intents (beta) | `POST /payment-intents`, `GET /payment-intents/{id}`, `POST /payment-intents/{id}/cancel` | Customer approves in the Fiatsend app or pays the USDC link with a Stellar wallet; events `payment_intent.*`; fields may still change |
 
 Full request/response shapes: `references/api-reference.md`.
 
@@ -125,7 +125,7 @@ Rate limits: sandbox 60/min · 10k/day; production 300/min · 100k/day; checkout
 
 ## Webhooks (summary)
 
-- Header `X-Fiatsend-Signature` = hex HMAC-SHA256 of the raw body with your webhook secret. Compare in constant time.
+- Header `X-Fiatsend-Signature` = HMAC-SHA256 of the raw body with your webhook secret, as `sha256=<hex>` on withdrawal and payment-intent events and bare hex on checkout events. Strip the `sha256=` prefix, then compare in constant time.
 - **Withdrawal events** (`withdrawal.pending|processing|completed|failed`): event name in `type`, payload in `data`. Registered via `POST /v1/webhooks` (you supply the `secret`). Retries: 1m, 5m, 30m, 2h, 24h.
 - **Checkout event** (`checkout.session.completed`): event name in `event`, session in `data.object`, unique `id`. Registered in Console. Up to 3 attempts, 8 s timeout each.
 - Read the name with `payload.type ?? payload.event`. Return 2xx fast, process async, and de-duplicate (event `id` for checkout; `withdrawal_id` + `status` for withdrawals).
