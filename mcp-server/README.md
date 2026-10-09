@@ -89,6 +89,7 @@ Same `mcpServers` block as Cursor.
 npm install
 npm run build
 npm test                       # 12 tests, no network needed
+FIATSEND_API_KEY=fs_test_xxx node test/sandbox.smoke.mjs   # live sandbox check
 FIATSEND_API_KEY=fs_test_demo_key_2026 npm run inspect   # click around in MCP Inspector
 ```
 
