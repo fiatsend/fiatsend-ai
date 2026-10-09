@@ -51,7 +51,7 @@ Content-Type: application/json
 | List checkouts | `GET /checkout/sessions?limit=25` | 1–100 |
 | Register webhook | `POST /webhooks` | Withdrawal events only |
 | List / delete webhooks | `GET /webhooks`, `DELETE /webhooks/{id}` | Delete returns 204 |
-| Payment intents | `POST /payment-intents`, `GET /payment-intents/{id}`, `POST /payment-intents/{id}/cancel` | Consumer approves in the Fiatsend app; not in the OpenAPI file yet |
+| Payment intents (beta) | `POST /payment-intents`, `GET /payment-intents/{id}`, `POST /payment-intents/{id}/cancel` | Customer approves in the Fiatsend app or pays the USDC link with a Stellar wallet; events `payment_intent.*`; fields may still change |
 
 Full request/response shapes: `references/api-reference.md`.
 

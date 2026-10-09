@@ -266,12 +266,47 @@ server.registerTool("fiatsend_create_checkout_session", {
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
 }, (a) => run(() => api().client.request("POST", "/checkout/sessions", { body: a, checkout: true })));
 
+server.registerTool("fiatsend_create_payment_intent", {
+  title: "Create payment intent (beta)",
+  description: "Beta. Request a payment from a customer: they approve it in the Fiatsend app or pay the USDC link with a Stellar wallet. USDC intents pay straight to the business's bound Stellar wallet (connect one in the console first). merchant_reference is the idempotency key: re-sending it returns the original intent. Collects money; moves nothing out.",
+  inputSchema: {
+    amount: z.string().regex(/^\d+(\.\d{1,2})?$/, "Decimal string, e.g. 25.00"),
+    currency: z.enum(["GHS", "USDC", "USDT"]).default("GHS"),
+    consumer_phone: z.string().describe("Customer's Ghana number, e.g. 0241234567 or +233241234567"),
+    merchant_reference: z.string().min(1).max(100),
+    description: z.string().max(200).optional(),
+    terminal_id: z.string().optional(),
+    metadata: z.record(z.string(), z.string().max(500)).optional(),
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+}, (a) => run(() => api().client.request("POST", "/payment-intents", {
+  body: { ...a, consumer_phone: normaliseGhanaPhone(a.consumer_phone) },
+})));
+
+server.registerTool("fiatsend_get_payment_intent", {
+  title: "Get payment intent (beta)",
+  description: "Beta. Retrieve a payment intent (pi_…). status: pending_approval → approved → onchain_pending → paid/completed, or rejected/cancelled/expired/failed.",
+  inputSchema: { payment_intent_id: z.string().regex(/^pi_[a-z0-9]+$/i, "Expected pi_…") },
+  annotations: { readOnlyHint: true, openWorldHint: true },
+}, ({ payment_intent_id }) => run(() => api().client.request("GET", `/payment-intents/${encodeURIComponent(payment_intent_id)}`)));
+
+server.registerTool("fiatsend_cancel_payment_intent", {
+  title: "Cancel payment intent (beta)",
+  description: "Beta. Cancel a payment intent that is still pending_approval. This can't be undone; confirm with the user first.",
+  inputSchema: { payment_intent_id: z.string().regex(/^pi_[a-z0-9]+$/i, "Expected pi_…") },
+  annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+}, ({ payment_intent_id }) => run(() => api().client.request("POST", `/payment-intents/${encodeURIComponent(payment_intent_id)}/cancel`)));
+
 server.registerTool("fiatsend_register_webhook", {
   title: "Register webhook",
-  description: "Register an https endpoint for withdrawal status events. If no secret is given, one is generated and returned ONCE — store it as FIATSEND_WEBHOOK_SECRET.",
+  description: "Register an https endpoint for withdrawal (and beta payment-intent) status events. If no secret is given, one is generated and returned ONCE — store it as FIATSEND_WEBHOOK_SECRET.",
   inputSchema: {
     url: z.string().url().startsWith("https://", "Webhook URLs must be https"),
-    events: z.array(z.enum(["withdrawal.pending", "withdrawal.processing", "withdrawal.completed", "withdrawal.failed"]))
+    events: z.array(z.enum([
+      "withdrawal.pending", "withdrawal.processing", "withdrawal.completed", "withdrawal.failed",
+      "payment_intent.pending_approval", "payment_intent.approved", "payment_intent.completed", "payment_intent.rejected",
+      "payment_intent.cancelled", "payment_intent.expired", "payment_intent.failed",
+    ]))
       .min(1).default(["withdrawal.processing", "withdrawal.completed", "withdrawal.failed"]),
     secret: z.string().min(16).optional(),
   },
