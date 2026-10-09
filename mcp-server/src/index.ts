@@ -17,6 +17,9 @@ const HINTS: Record<string, string> = {
   INVALID_NETWORK: "mobile_network must be MTN, TELECEL or AIRTELTIGO.",
   BELOW_MINIMUM: "Call fiatsend_list_networks for the network's min_amount.",
   ABOVE_MAXIMUM: "Call fiatsend_list_networks / fiatsend_get_limits for the maximum.",
+  REFERENCE_IN_USE: "Use a new, unique reference_id for this payout.",
+  INSUFFICIENT_BALANCE: "Fund the business balance in the Fiatsend console, then retry.",
+  PAYOUTS_UNAVAILABLE: "Payouts are temporarily unavailable and nothing was charged; retry later.",
   RATE_EXPIRED: "Get a fresh quote with fiatsend_get_rate, then retry.",
   RATE_LIMITED: "Too many requests — wait and retry with the same reference_id.",
   rate_limited: "Too many requests — wait and retry.",
@@ -156,7 +159,7 @@ server.registerTool("fiatsend_get_withdrawal", {
 
 server.registerTool("fiatsend_list_transactions", {
   title: "List transactions",
-  description: "List withdrawals with optional filters. reference_id is applied by this server because the API currently ignores it. To recover from a timeout, re-send fiatsend_create_withdrawal with the same reference_id instead: it returns the existing payout.",
+  description: "List withdrawals with optional filters (status, reference_id, from_date, to_date). To recover from a timeout, re-send fiatsend_create_withdrawal with the same reference_id instead: it returns the existing payout.",
   inputSchema: {
     status: z.enum(["pending", "processing", "completed", "failed"]).optional(),
     reference_id: z.string().optional(),
@@ -168,10 +171,9 @@ server.registerTool("fiatsend_list_transactions", {
   annotations: { readOnlyHint: true, openWorldHint: true },
 }, (q) => run(async () => {
   const res = await api().client.request("GET", "/transactions", { query: q });
-  // The API currently ignores reference_id; filter here so callers get only matching payouts.
+  // Safety net for older API versions that ignored reference_id: never hand back other payouts.
   if (q.reference_id && Array.isArray(res?.data)) {
-    const data = res.data.filter((w: any) => w.reference_id === q.reference_id);
-    return { ...res, data, note: "Filtered by reference_id on the client (the API returned unfiltered results)." };
+    return { ...res, data: res.data.filter((w: any) => w.reference_id === q.reference_id) };
   }
   return res;
 }));

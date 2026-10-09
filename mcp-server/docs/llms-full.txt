@@ -41,11 +41,11 @@ Content-Type: application/json
 |---|---|---|
 | Health check | `GET /health` | No auth |
 | Networks + min/max | `GET /supported-networks` | `status`: operational / degraded / down |
-| KYC tier limits | `GET /limits` | basic / standard / enterprise (docs say "verified"; the API returns `standard`) |
+| KYC tier limits | `GET /limits` | basic / standard / enterprise |
 | FX quote | `GET /rates?from_currency=USDC&to_currency=GHS&amount=100.00` | Guaranteed until `valid_until`. `fee` is in the stablecoin: `total_ghs = (amount − fee) × rate` |
 | Send payout | `POST /withdrawals` | Returns 201, `status: pending` |
 | Payout status | `GET /withdrawals/{withdrawal_id}` | Prefer webhooks over polling |
-| List payouts | `GET /transactions` | Filters: status, from_date, to_date, page, per_page≤100. `reference_id` filter is currently ignored — filter results yourself |
+| List payouts | `GET /transactions` | Filters: status, reference_id, page, per_page≤100 |
 | Create checkout | `POST /checkout/sessions` | Redirect customer to `url` |
 | Get checkout | `GET /checkout/sessions/{id}` | `status`: open / complete / cancelled |
 | List checkouts | `GET /checkout/sessions?limit=25` | 1–100 |
@@ -125,7 +125,7 @@ Rate limits: sandbox 60/min · 10k/day; production 300/min · 100k/day; checkout
 
 ## Webhooks (summary)
 
-- Header `X-Fiatsend-Signature` = hex HMAC-SHA256 of the raw body with your webhook secret. Compare in constant time.
+- Header `X-Fiatsend-Signature` = HMAC-SHA256 of the raw body with your webhook secret, as `sha256=<hex>` on withdrawal and payment-intent events and bare hex on checkout events. Strip the `sha256=` prefix, then compare in constant time.
 - **Withdrawal events** (`withdrawal.pending|processing|completed|failed`): event name in `type`, payload in `data`. Registered via `POST /v1/webhooks` (you supply the `secret`). Retries: 1m, 5m, 30m, 2h, 24h.
 - **Checkout event** (`checkout.session.completed`): event name in `event`, session in `data.object`, unique `id`. Registered in Console. Up to 3 attempts, 8 s timeout each.
 - Read the name with `payload.type ?? payload.event`. Return 2xx fast, process async, and de-duplicate (event `id` for checkout; `withdrawal_id` + `status` for withdrawals).
@@ -182,7 +182,7 @@ Locks the FX rate, converts stablecoin → GHS, sends to the mobile wallet.
   "amount": "50.00", "currency": "USDC", "ghs_amount": "750.00",
   "fx_rate": "15.00", "fee": "0.50",
   "recipient_phone": "+233241234567", "mobile_network": "MTN",
-  "reference_id": "deel-txn-abc123",
+  "reference_id": "acme-txn-abc123",
   "estimated_completion": "2026-03-21T07:00:00Z", "created_at": "2026-03-21T06:59:30Z" } }
 ```
 Errors: 400 `INVALID_PHONE`/`INVALID_NETWORK`, 401, 422 `BELOW_MINIMUM`/`ABOVE_MAXIMUM`/`RATE_EXPIRED`, 429, 503.
@@ -197,7 +197,6 @@ Status lifecycle: `pending` → `processing` → `completed` | `failed` (funds r
 ### GET /transactions
 Query: `status`, `from_date`, `to_date` (ISO 8601), `reference_id`, `page` (1), `per_page` (25, max 100).
 
-> **Known issue (sandbox, 2026-10-09):** `reference_id` is ignored — the response includes withdrawals with other references. Filter `data` by `reference_id` in your own code.
 Response: `{ status, data: [WithdrawalDetail], pagination: { page, per_page, total, total_pages } }`.
 
 ---
@@ -214,7 +213,7 @@ Query (all required): `from_currency` (`USDC`|`USDT`), `to_currency` (`GHS`), `a
 Rate is guaranteed until `valid_until`. `fee` is in the source stablecoin: `total_ghs = (amount − fee) × rate`, rounded to 2 places (sandbox: 10.00 USDC, fee 0.10, rate 11.65 → 115.34). Example values are illustrative — always use the live response.
 
 ### GET /supported-networks
-Each item: `network_id`, `name`, `country` (`GH`), `currency` (`GHS`), `status` (`operational`|`degraded`|`down`), `min_amount`, `max_amount`.
+Each item: `network_id`, `name`, `country` (`GH`), `currency` (`GHS`), `status` (`operational`|`degraded`|`down`), `min_amount`, `max_amount`. `min_amount`/`max_amount` are in GHS (the network `currency`), not the stablecoin.
 Documented examples: MTN 5–10,000; TELECEL 5–5,000; AIRTELTIGO 5–5,000. Read live values; don't hard-code.
 
 ### GET /limits
@@ -292,6 +291,9 @@ Checkout webhooks are configured in Console, not here.
 | INVALID_NETWORK | 400 | Unsupported network |
 | BELOW_MINIMUM | 422 | Amount below network minimum |
 | ABOVE_MAXIMUM | 422 | Amount above network maximum |
+| REFERENCE_IN_USE | 409 | `reference_id` already used by another account; use a unique one per payout |
+| INSUFFICIENT_BALANCE | 422 | Business balance doesn't cover the withdrawal; fund it in the console |
+| PAYOUTS_UNAVAILABLE | 503 | Payouts temporarily unavailable; nothing was charged, retry later |
 | RATE_EXPIRED | 422 | Quote expired |
 | NETWORK_DOWN | 503 | Mobile money network unavailable |
 | INSUFFICIENT_LIQUIDITY | 503 | Not enough liquidity |
@@ -330,7 +332,6 @@ Checkout event — name in `event`, object in `data.object`, also header `X-Fiat
   "data": { "object": { "id": "cs_...", "status": "complete", "client_reference_id": "order_1042" } } }
 ```
 
-> Note: the docs' Express sample switches on `event.event` for withdrawal events — that field is `type` for withdrawals. Use `payload.type ?? payload.event`.
 
 Dedup key: checkout → `id`; withdrawal → `${data.withdrawal_id}:${data.status}`.
 
@@ -344,9 +345,11 @@ const app = express();
 
 function isValidSignature(rawBody, header, secret) {
   if (!header) return false;
+  // Withdrawal events send "sha256=<hex>"; checkout events send bare hex. Accept both.
+  const received = header.startsWith("sha256=") ? header.slice(7) : header;
   const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  const a = Buffer.from(header, "utf8");
-  const b = Buffer.from(expected, "utf8");
+  const a = Buffer.from(received, "hex");
+  const b = Buffer.from(expected, "hex");
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
@@ -380,10 +383,11 @@ import crypto from "node:crypto";
 
 export async function POST(req: Request) {
   const raw = await req.text();                       // raw body, not req.json()
-  const sig = req.headers.get("x-fiatsend-signature") ?? "";
+  const header = req.headers.get("x-fiatsend-signature") ?? "";
+  const sig = header.startsWith("sha256=") ? header.slice(7) : header;  // withdrawal events are prefixed
   const expected = crypto.createHmac("sha256", process.env.FIATSEND_WEBHOOK_SECRET!).update(raw).digest("hex");
   const ok = sig.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
   if (!ok) return new Response("invalid signature", { status: 401 });
 
   const payload = JSON.parse(raw);
@@ -406,6 +410,7 @@ SECRET = os.environ["FIATSEND_WEBHOOK_SECRET"].encode()
 async def fiatsend_webhook(request: Request):
     raw = await request.body()
     sig = request.headers.get("x-fiatsend-signature", "")
+    sig = sig[7:] if sig.startswith("sha256=") else sig  # withdrawal events are prefixed
     expected = hmac.new(SECRET, raw, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected):
         raise HTTPException(status_code=401, detail="invalid signature")

@@ -32,7 +32,7 @@ Locks the FX rate, converts stablecoin → GHS, sends to the mobile wallet.
   "amount": "50.00", "currency": "USDC", "ghs_amount": "750.00",
   "fx_rate": "15.00", "fee": "0.50",
   "recipient_phone": "+233241234567", "mobile_network": "MTN",
-  "reference_id": "deel-txn-abc123",
+  "reference_id": "acme-txn-abc123",
   "estimated_completion": "2026-03-21T07:00:00Z", "created_at": "2026-03-21T06:59:30Z" } }
 ```
 Errors: 400 `INVALID_PHONE`/`INVALID_NETWORK`, 401, 422 `BELOW_MINIMUM`/`ABOVE_MAXIMUM`/`RATE_EXPIRED`, 429, 503.
@@ -47,7 +47,6 @@ Status lifecycle: `pending` → `processing` → `completed` | `failed` (funds r
 ### GET /transactions
 Query: `status`, `from_date`, `to_date` (ISO 8601), `reference_id`, `page` (1), `per_page` (25, max 100).
 
-> **Known issue (sandbox, 2026-10-09):** `reference_id` is ignored — the response includes withdrawals with other references. Filter `data` by `reference_id` in your own code.
 Response: `{ status, data: [WithdrawalDetail], pagination: { page, per_page, total, total_pages } }`.
 
 ---
@@ -64,7 +63,7 @@ Query (all required): `from_currency` (`USDC`|`USDT`), `to_currency` (`GHS`), `a
 Rate is guaranteed until `valid_until`. `fee` is in the source stablecoin: `total_ghs = (amount − fee) × rate`, rounded to 2 places (sandbox: 10.00 USDC, fee 0.10, rate 11.65 → 115.34). Example values are illustrative — always use the live response.
 
 ### GET /supported-networks
-Each item: `network_id`, `name`, `country` (`GH`), `currency` (`GHS`), `status` (`operational`|`degraded`|`down`), `min_amount`, `max_amount`.
+Each item: `network_id`, `name`, `country` (`GH`), `currency` (`GHS`), `status` (`operational`|`degraded`|`down`), `min_amount`, `max_amount`. `min_amount`/`max_amount` are in GHS (the network `currency`), not the stablecoin.
 Documented examples: MTN 5–10,000; TELECEL 5–5,000; AIRTELTIGO 5–5,000. Read live values; don't hard-code.
 
 ### GET /limits
@@ -142,6 +141,9 @@ Checkout webhooks are configured in Console, not here.
 | INVALID_NETWORK | 400 | Unsupported network |
 | BELOW_MINIMUM | 422 | Amount below network minimum |
 | ABOVE_MAXIMUM | 422 | Amount above network maximum |
+| REFERENCE_IN_USE | 409 | `reference_id` already used by another account; use a unique one per payout |
+| INSUFFICIENT_BALANCE | 422 | Business balance doesn't cover the withdrawal; fund it in the console |
+| PAYOUTS_UNAVAILABLE | 503 | Payouts temporarily unavailable; nothing was charged, retry later |
 | RATE_EXPIRED | 422 | Quote expired |
 | NETWORK_DOWN | 503 | Mobile money network unavailable |
 | INSUFFICIENT_LIQUIDITY | 503 | Not enough liquidity |

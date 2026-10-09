@@ -34,6 +34,13 @@ test("verifySignature matches hex HMAC-SHA256 and rejects tampering", () => {
   assert.equal(verifySignature(body, "short", "whsec_abc"), false); // no throw on length mismatch
 });
 
+test("verifySignature accepts the sha256= prefix withdrawal events use", () => {
+  const body = '{"id":"evt_1","type":"withdrawal.completed","data":{"withdrawal_id":"wd_1"}}';
+  const sig = crypto.createHmac("sha256", "whsec_abc").update(body).digest("hex");
+  assert.equal(verifySignature(body, `sha256=${sig}`, "whsec_abc"), true);
+  assert.equal(verifySignature(body, `sha256=${sig.slice(0, -1)}0`, "whsec_abc"), false);
+});
+
 function fakeFetch(status, body, seen) {
   return async (url, init) => {
     seen?.push({ url: String(url), init });

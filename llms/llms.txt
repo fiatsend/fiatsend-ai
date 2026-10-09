@@ -2,7 +2,7 @@
 
 > Fiatsend converts USDC/USDT to Ghana cedis and delivers them to MTN MoMo, Telecel Cash and AirtelTigo Money wallets, and lets businesses take payments in GHS or USDC through hosted checkout. REST API, Bearer-key auth, HMAC-signed webhooks. Sandbox: https://sandbox.fiatsend.com/v1 (fs_test_ keys). Production: https://api.fiatsend.com/v1 (fs_live_ keys).
 
-Key facts for code generation: withdrawal amounts are decimal strings; `reference_id` is the idempotency key; phones are E.164 (+233…); webhook signature is hex HMAC-SHA256 of the raw body in `X-Fiatsend-Signature`; checkout sessions use api.fiatsend.com for both test and live keys.
+Key facts for code generation: withdrawal amounts are decimal strings; `reference_id` is the idempotency key; phones are E.164 (+233…); webhook signature is HMAC-SHA256 of the raw body in `X-Fiatsend-Signature` (`sha256=<hex>` on withdrawal events, bare hex on checkout events; strip the prefix before comparing); checkout sessions use api.fiatsend.com for both test and live keys.
 
 ## Docs
 

@@ -22,7 +22,6 @@ Checkout event — name in `event`, object in `data.object`, also header `X-Fiat
   "data": { "object": { "id": "cs_...", "status": "complete", "client_reference_id": "order_1042" } } }
 ```
 
-> Note: the docs' Express sample switches on `event.event` for withdrawal events — that field is `type` for withdrawals. Use `payload.type ?? payload.event`.
 
 Dedup key: checkout → `id`; withdrawal → `${data.withdrawal_id}:${data.status}`.
 
@@ -36,9 +35,11 @@ const app = express();
 
 function isValidSignature(rawBody, header, secret) {
   if (!header) return false;
+  // Withdrawal events send "sha256=<hex>"; checkout events send bare hex. Accept both.
+  const received = header.startsWith("sha256=") ? header.slice(7) : header;
   const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  const a = Buffer.from(header, "utf8");
-  const b = Buffer.from(expected, "utf8");
+  const a = Buffer.from(received, "hex");
+  const b = Buffer.from(expected, "hex");
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
@@ -72,10 +73,11 @@ import crypto from "node:crypto";
 
 export async function POST(req: Request) {
   const raw = await req.text();                       // raw body, not req.json()
-  const sig = req.headers.get("x-fiatsend-signature") ?? "";
+  const header = req.headers.get("x-fiatsend-signature") ?? "";
+  const sig = header.startsWith("sha256=") ? header.slice(7) : header;  // withdrawal events are prefixed
   const expected = crypto.createHmac("sha256", process.env.FIATSEND_WEBHOOK_SECRET!).update(raw).digest("hex");
   const ok = sig.length === expected.length &&
-    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+    crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
   if (!ok) return new Response("invalid signature", { status: 401 });
 
   const payload = JSON.parse(raw);
@@ -98,6 +100,7 @@ SECRET = os.environ["FIATSEND_WEBHOOK_SECRET"].encode()
 async def fiatsend_webhook(request: Request):
     raw = await request.body()
     sig = request.headers.get("x-fiatsend-signature", "")
+    sig = sig[7:] if sig.startswith("sha256=") else sig  # withdrawal events are prefixed
     expected = hmac.new(SECRET, raw, hashlib.sha256).hexdigest()
     if not hmac.compare_digest(sig, expected):
         raise HTTPException(status_code=401, detail="invalid signature")
