@@ -1,0 +1,52 @@
+{
+  "name": "@fiatsend/mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the Fiatsend Partner API — rates, networks, stablecoin-to-mobile-money payouts, checkout sessions and webhooks. Sandbox-first.",
+  "license": "MIT",
+  "author": "Fiatsend <partners@fiatsend.com>",
+  "homepage": "https://developer.fiatsend.com",
+  "type": "module",
+  "bin": {
+    "fiatsend-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "start": "node dist/index.js",
+    "test": "node --test test/*.test.mjs",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "fiatsend",
+    "payments",
+    "stablecoin",
+    "mobile-money",
+    "ghana",
+    "usdc"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fiatsend/fiatsend-ai.git",
+    "directory": "mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/fiatsend/fiatsend-ai/issues"
+  }
+}

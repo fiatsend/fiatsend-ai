@@ -1,0 +1,9 @@
+{
+  "name": "fiatsend",
+  "version": "0.1.0",
+  "description": "Build on the Fiatsend Partner API: stablecoin-to-mobile-money payouts, hosted checkout and signed webhooks. Includes the fiatsend-api skill and the Fiatsend MCP server.",
+  "author": { "name": "Fiatsend", "email": "partners@fiatsend.com", "url": "https://www.fiatsend.com" },
+  "homepage": "https://developer.fiatsend.com",
+  "license": "MIT",
+  "keywords": ["payments", "stablecoin", "mobile-money", "ghana", "usdc"]
+}

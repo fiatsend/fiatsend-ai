@@ -1,0 +1,11 @@
+{
+  "name": "fiatsend",
+  "owner": { "name": "Fiatsend", "email": "partners@fiatsend.com" },
+  "plugins": [
+    {
+      "name": "fiatsend",
+      "source": "./",
+      "description": "Fiatsend Partner API skill + MCP server for payouts, checkout and webhooks."
+    }
+  ]
+}

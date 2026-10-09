@@ -1,0 +1,33 @@
+---
+description: Fiatsend Partner API — stablecoin to Ghana mobile money payouts, hosted checkout, FX rates and webhooks. Apply when code calls fiatsend.com or mentions Fiatsend.
+globs:
+alwaysApply: false
+---
+
+# Fiatsend Partner API rules
+
+Docs: https://developer.fiatsend.com · OpenAPI: https://developer.fiatsend.com/fiatsend-openapi.yaml
+
+## Hosts and auth
+- Sandbox `https://sandbox.fiatsend.com/v1` (key `fs_test_…`); production `https://api.fiatsend.com/v1` (key `fs_live_…`).
+- Checkout sessions always use `https://api.fiatsend.com/v1`; the key prefix picks test/live.
+- Header `Authorization: Bearer ${process.env.FIATSEND_API_KEY}`. Never put keys in client code. Default to sandbox.
+
+## Must do
+- Withdrawal `amount` is a decimal **string** (`"50.00"`); checkout `amount` is a number. No float math on money.
+- `reference_id` is the idempotency key: derive it from a stored DB record, reuse on retry, never regenerate.
+- `recipient_phone` E.164 Ghana: `+233` + 9 digits. `mobile_network`: `MTN` | `TELECEL` | `AIRTELTIGO`. `currency`: `USDC` | `USDT`.
+- Before paying out: check `GET /supported-networks` (status + min/max) and `GET /rates` (`valid_until`).
+- Webhooks: verify `X-Fiatsend-Signature` (hex HMAC-SHA256 of the RAW body, constant-time compare, length-check first) before parsing. Event name is `payload.type` (withdrawals) or `payload.event` (checkout). Dedupe, respond 2xx fast.
+- Fulfil checkout orders only on `checkout.session.completed` or a server GET showing `status: "complete"`.
+- Handle both error shapes: `{status:"error",code,message}` and `{error:{code,message}}`.
+- Retry with backoff only on 429/500/502/503; on `RATE_EXPIRED` re-quote; on timeout, `GET /transactions?reference_id=` before re-posting.
+
+## Endpoints
+GET /health (no auth) · GET /supported-networks · GET /limits · GET /rates?from_currency&to_currency=GHS&amount ·
+POST /withdrawals · GET /withdrawals/{id} · GET /transactions ·
+POST|GET /checkout/sessions · GET /checkout/sessions/{id} ·
+POST|GET /webhooks · DELETE /webhooks/{id} ·
+POST /payment-intents · GET /payment-intents/{id} · POST /payment-intents/{id}/cancel
+
+Withdrawal status: pending → processing → completed | failed. Checkout status: open | complete | cancelled.

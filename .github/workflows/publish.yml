@@ -1,0 +1,28 @@
+name: Publish MCP server to npm
+# Runs when you publish a GitHub Release whose tag looks like v0.1.0
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+  id-token: write   # lets npm show a verified "built from this repo" badge
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Tag must match package version
+        run: test "v$(node -p "require('./package.json').version")" = "${{ github.event.release.tag_name }}"
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

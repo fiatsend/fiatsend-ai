@@ -1,0 +1,27 @@
+# Fiatsend Partner API
+
+> Fiatsend converts USDC/USDT to Ghana cedis and delivers them to MTN MoMo, Telecel Cash and AirtelTigo Money wallets, and lets businesses take payments in GHS or USDC through hosted checkout. REST API, Bearer-key auth, HMAC-signed webhooks. Sandbox: https://sandbox.fiatsend.com/v1 (fs_test_ keys). Production: https://api.fiatsend.com/v1 (fs_live_ keys).
+
+Key facts for code generation: withdrawal amounts are decimal strings; `reference_id` is the idempotency key; phones are E.164 (+233…); webhook signature is hex HMAC-SHA256 of the raw body in `X-Fiatsend-Signature`; checkout sessions use api.fiatsend.com for both test and live keys.
+
+## Docs
+
+- [Full docs for LLMs](https://developer.fiatsend.com/llms-full.txt): every endpoint, field, error code and webhook handler in one file
+- [Developer portal](https://developer.fiatsend.com): quick start, live sandbox, API reference
+- [OpenAPI 3.0 spec](https://developer.fiatsend.com/fiatsend-openapi.yaml): machine-readable contract
+- [Webhook guide](https://developer.fiatsend.com/#webhooks): signature verification, events, retry policy
+- [Checkout sessions](https://developer.fiatsend.com/#api-checkout): accept payments with hosted checkout
+- [Error codes](https://developer.fiatsend.com/#error-codes)
+
+## AI tooling
+
+- [Agent Skill](https://github.com/fiatsend/fiatsend-ai/tree/main/skills/fiatsend-api): drop-in skill for Claude Code and other skill-aware agents
+- [MCP server](https://www.npmjs.com/package/@fiatsend/mcp): sandbox-first tools for rates, networks, payouts and checkout
+- [Cursor rules](https://github.com/fiatsend/fiatsend-ai/blob/main/.cursor/rules/fiatsend.mdc)
+
+## Optional
+
+- [Postman collection](https://developer.fiatsend.com/fiatsend-postman-collection.json)
+- [Website checkout (no-code)](https://docs.fiatsend.com/docs/payments/website-checkout)
+- [Console](https://console.fiatsend.com): API keys and webhook settings
+- Support: partners@fiatsend.com

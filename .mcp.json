@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fiatsend": {
+      "command": "npx",
+      "args": ["-y", "@fiatsend/mcp"],
+      "env": { "FIATSEND_API_KEY": "${FIATSEND_API_KEY}" }
+    }
+  }
+}
